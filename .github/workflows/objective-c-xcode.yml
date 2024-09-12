@@ -1,0 +1,48 @@
+name: Build and Repack ALVR-visionOS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Install cbindgen
+      run: cargo install cbindgen
+
+    - name: Add iOS target
+      run: rustup target add aarch64-apple-ios
+
+    - name: Build for iOS
+      run: cargo build --manifest-path ALVR/Cargo.toml --target=aarch64-apple-ios -p alvr_client_core --profile distribution
+
+    - name: Generate bindings with cbindgen
+      run: |
+        cd ALVR/alvr/client_core
+        cbindgen --config cbindgen.toml --crate alvr_client_core --output ../../alvr_client_core.h
+        cd ../../../
+
+    - name: Repack ALVR Client
+      run: sh repack_alvr_client.sh
+
+    - name: Clean up ALVR build
+      run: |
+        cargo clean --manifest-path ALVR/Cargo.toml
+        rm ALVR/alvr_client_core.h
